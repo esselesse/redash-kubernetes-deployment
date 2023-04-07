@@ -55,7 +55,7 @@ spec:
             - name: REDASH_NAME
               value: "redash"
             - name: REDASH_HOST
-              value: {custom_host}
+              value: {custom_host} # for example, "redash.my.com"
             - name: REDASH_MAIL_SERVER
               value: {smtp_mail_host} # for example, "mailcatcher", if it is up in same cluster
             - name: REDASH_MAIL_PORT
