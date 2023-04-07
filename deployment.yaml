@@ -1,0 +1,203 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redash
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redash
+  template:
+    metadata:
+      labels:
+        app: redash
+    spec:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+      volumes:
+        - name: "tmp-storage"
+          emptyDir:
+            sizeLimit: "500Mi"
+      containers:
+        - name: redash-web
+          image: redash/redash:10.1.0.b50633 # DO NOT USE redash/redash image without precise version!
+          args: ["server"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi # NB!!! it MUST be 1GB+!!! or server will make new workers infinitely (which will silently die right after creation6 WITHOUT any logging error)
+            limits:
+              cpu: 1
+              memory: 1Gi
+          ports:
+            - name: redash-http
+              containerPort: 5000
+            - name: redash-server
+              containerPort: 5678
+          env:
+            - name: REDASH_LOG_LEVEL
+              value: WARN
+            - name: REDASH_DATABASE_URL
+              value: postgres://{redash_pg_username}:{redash_pg_password}@{pg_host}:5432/redash
+            - name: REDASH_REDIS_URL
+              value: redis://:{redis_password}@{redis_host}:{redis_port}/0 # note that there is ':' before {redis_password}. sometimes we do not need redis username
+            - name: REDASH_WEB_WORKERS
+              value: "4"
+            - name: REDASH_GUNICORN_TIMEOUT
+              value: "120"
+            - name: PYTHONUNBUFFERED
+              value: "0"
+            - name: REDASH_COOKIE_SECRET
+              value: {SECRET_CODE} # could be any word or generated sequence. should be same for server and its workers
+            - name: REDASH_NAME
+              value: "redash"
+            - name: REDASH_HOST
+              value: {custom_host}
+            - name: REDASH_MAIL_SERVER
+              value: {smtp_mail_host} # for example, "mailcatcher", if it is up in same cluster
+            - name: REDASH_MAIL_PORT
+              value: {smtp_mail_port}
+#            - name: REDASH_MAIL_USERNAME # this commented out code does not needed for mailcatcher. mailcatcher will not work with it.
+#              value: "username"
+#            - name: REDASH_MAIL_PASSWORD
+#              value: "password"
+            - name: REDASH_MAIL_DEFAULT_SENDER
+              value: {redash_custom_sender_name}
+#            - name: REDASH_MAIL_USE_TLS
+#              value: "true"
+#            - name: REDASH_ENFORCE_HTTPS
+#              value: "true"
+            - name: REDASH_ADDITIONAL_QUERY_RUNNERS
+              value: "redash.query_runner.python"
+        - name: redash-scheduled-worker
+          image: redash/redash:10.1.0.b50633
+          args: ["worker"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi
+            limits:
+              cpu: 1
+              memory: 1Gi
+          env:
+            - name: REDASH_HOST
+              value: {custom_host}
+            - name: REDASH_MAIL_SERVER
+              value: {smtp_mail_host}
+            - name: REDASH_MAIL_PORT
+              value: "1025"
+#            - name: REDASH_MAIL_USERNAME
+#              value: "username"
+#            - name: REDASH_MAIL_PASSWORD
+#              value: "password"
+            - name: REDASH_MAIL_DEFAULT_SENDER
+              value: {redash_custom_sender_name}
+#            - name: REDASH_MAIL_USE_TLS
+#              value: "true"
+#            - name: REDASH_ENFORCE_HTTPS
+#              value: "true"
+            - name: REDASH_LOG_LEVEL
+              value: WARN
+            - name: REDASH_DATABASE_URL
+              value: postgres://{redash_pg_username}:{redash_pg_password}@{pg_host}:5432/redash
+            - name: REDASH_REDIS_URL
+              value: redis://:{redis_password}@{redis_host}:{redis_port}/0
+            - name: REDASH_COOKIE_SECRET
+              value: {SECRET_CODE}
+            - name: WORKERS_COUNT
+              value: "1"
+            - name: QUEUES
+              value: "schemas,scheduled_queries,default"
+            - name: PYTHONUNBUFFERED
+              value: "0"
+            - name: REDASH_ADDITIONAL_QUERY_RUNNERS
+              value: "redash.query_runner.python"
+        - name: redash-adhoc-worker
+          image: redash/redash:10.1.0.b50633
+          args: ["worker"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi
+            limits:
+              cpu: 1
+              memory: 1Gi
+          env:
+            - name: REDASH_HOST
+              value: {custom_host}
+            - name: REDASH_MAIL_SERVER
+              value: {smtp_mail_host}
+            - name: REDASH_MAIL_PORT
+              value: "1025"
+#            - name: REDASH_MAIL_USERNAME
+#              value: "username"
+#            - name: REDASH_MAIL_PASSWORD
+#              value: "password"
+            - name: REDASH_MAIL_DEFAULT_SENDER
+              value: {redash_custom_sender_name}
+#            - name: REDASH_MAIL_USE_TLS
+#              value: "true"
+#            - name: REDASH_ENFORCE_HTTPS
+#              value: "true"
+            - name: REDASH_LOG_LEVEL
+              value: WARN
+            - name: REDASH_DATABASE_URL
+              value: postgres://{redash_pg_username}:{redash_pg_password}@{pg_host}:5432/redash
+            - name: REDASH_REDIS_URL
+              value: redis://:{redis_password}@{redis_host}:{redis_port}/0
+            - name: REDASH_COOKIE_SECRET
+              value: {SECRET_CODE}
+            - name: WORKERS_COUNT
+              value: "2"
+            - name: QUEUES
+              value: "queries,periodic,emails"
+            - name: PYTHONUNBUFFERED
+              value: "0"
+            - name: REDASH_ADDITIONAL_QUERY_RUNNERS
+              value: "redash.query_runner.python"
+        - name: redash-scheduler
+          image: redash/redash:10.1.0.b50633
+          args: ["scheduler"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi
+            limits:
+              cpu: 1
+              memory: 1Gi
+          env:
+            - name: REDASH_LOG_LEVEL
+              value: WARN
+            - name: REDASH_DATABASE_URL
+              value: postgres://{redash_pg_username}:{redash_pg_password}@{pg_host}:5432/redash
+            - name: REDASH_REDIS_URL
+              value: redis://:{redis_password}@{redis_host}:{redis_port}/0
+            - name: REDASH_COOKIE_SECRET
+              value: {SECRET_CODE}
+            - name: WORKERS_COUNT
+              value: "1"
+            - name: QUEUES
+              value: "celery"
+            - name: PYTHONUNBUFFERED
+              value: "0"
+            - name: REDASH_ADDITIONAL_QUERY_RUNNERS
+              value: "redash.query_runner.python"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redash-service
+spec:
+  ports:
+    - port: 80
+      targetPort: 5000
+      name: redash-http
+    - port: 5678
+      targetPort: 5678
+      name: redash-server
+  selector:
+    app: redash
+  type: ClusterIP
